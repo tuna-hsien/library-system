@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>借閱者分類與推薦系統</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F2EBDC;
+    --paper-deep: #E8DEC8;
+    --card: #FBF7EE;
+    --ink: #1F3A35;
+    --ink-light: #2E4D46;
+    --terracotta: #C0654A;
+    --terracotta-deep: #9B4A35;
+  }
+  * { font-family: 'Noto Sans TC', sans-serif; }
+  .font-display { font-family: 'Noto Serif TC', serif; }
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+  body { background-color: var(--paper); color: var(--ink); }
+
+  .paper-texture {
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(31,58,53,0.025) 0%, transparent 45%),
+      radial-gradient(circle at 80% 70%, rgba(192,101,74,0.025) 0%, transparent 45%);
+  }
+
+  .card-stamp {
+    background: var(--card);
+    border: 1.5px solid rgba(31,58,53,0.18);
+    box-shadow: 2px 2px 0 rgba(31,58,53,0.06);
+  }
+
+  .ledger-line {
+    border-bottom: 1px dashed rgba(31,58,53,0.18);
+  }
+
+  .btn-ink {
+    background: var(--ink);
+    color: var(--paper);
+    transition: all 0.15s ease;
+  }
+  .btn-ink:hover { background: var(--ink-light); transform: translateY(-1px); }
+  .btn-ink:active { transform: translateY(0); }
+  .btn-ink:disabled { opacity: 0.4; transform: none; cursor: not-allowed; }
+
+  .btn-stamp {
+    background: var(--terracotta);
+    color: var(--paper);
+    transition: all 0.15s ease;
+  }
+  .btn-stamp:hover { background: var(--terracotta-deep); transform: translateY(-1px); }
+  .btn-stamp:active { transform: translateY(0); }
+
+  .input-ledger {
+    background: var(--card);
+    border: 1.5px solid rgba(31,58,53,0.25);
+    color: var(--ink);
+  }
+  .input-ledger:focus {
+    outline: none;
+    border-color: var(--terracotta);
+    box-shadow: 0 0 0 3px rgba(192,101,74,0.15);
+  }
+
+  .spine {
+    width: 8px;
+    border-radius: 2px;
+  }
+
+  .badge-core { background: #DCE8DC; color: #1F3A35; border: 1px solid #1F3A35; }
+  .badge-explorer { background: #FBE7D5; color: #8A4A1F; border: 1px solid #C0654A; }
+  .badge-niche { background: #E8E2F0; color: #4B3A6B; border: 1px solid #6B5694; }
+  .badge-casual { background: #F0E2D8; color: #8A5A3A; border: 1px solid #B07A52; }
+
+  .spine-小說 { background: #1F3A35; }
+  .spine-科普 { background: #2E5C8A; }
+  .spine-商業 { background: #8A4A1F; }
+  .spine-歷史 { background: #6B5694; }
+  .spine-漫畫 { background: #C0654A; }
+
+  .tab-active {
+    border-bottom: 3px solid var(--terracotta);
+    color: var(--ink);
+  }
+  .tab-inactive {
+    border-bottom: 3px solid transparent;
+    color: rgba(31,58,53,0.45);
+  }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(31,58,53,0.25); border-radius: 4px; }
+
+  @keyframes stampIn {
+    0% { transform: scale(1.4) rotate(-8deg); opacity: 0; }
+    60% { transform: scale(0.95) rotate(2deg); opacity: 1; }
+    100% { transform: scale(1) rotate(-3deg); opacity: 1; }
+  }
+  .stamp-anim { animation: stampIn 0.4s ease-out; }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 50;
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  .skeleton {
+    background: linear-gradient(90deg, var(--paper-deep) 25%, rgba(255,255,255,0.4) 50%, var(--paper-deep) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+</style>
+</head>
+<body class="paper-texture min-h-screen pb-24">
+
+  <header class="border-b-2 border-[var(--ink)]/15 bg-[var(--paper)]/95 sticky top-0 z-40 backdrop-blur-sm">
+    <div class="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-[var(--ink)] flex items-center justify-center shrink-0">
+          <span class="font-display text-[var(--paper)] text-lg font-bold">圖</span>
+        </div>
+        <div>
+          <h1 class="font-display text-xl font-bold tracking-wide leading-tight">借閱者分類與推薦系統</h1>
+          <p class="text-xs text-[var(--ink)]/55 font-mono mt-0.5">LIBRARY READER CLASSIFICATION SYSTEM</p>
+        </div>
+      </div>
+      <div class="hidden sm:flex items-center gap-2 text-xs font-mono text-[var(--ink)]/50 border border-[var(--ink)]/20 rounded-full px-3 py-1.5">
+        <span id="api-status-dot" class="w-2 h-2 rounded-full bg-[var(--terracotta)]"></span>
+        <span id="api-status-text">檢查連線中...</span>
+      </div>
+    </div>
+    <nav class="max-w-6xl mx-auto px-6 flex gap-8 text-sm font-medium">
+      <button data-tab="browse" class="tab-btn tab-active pb-3 pt-1">書籍瀏覽與借閱</button>
+      <button data-tab="profile" class="tab-btn tab-inactive pb-3 pt-1">個人化推薦與分類</button>
+    </nav>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-8">
+
+    <!-- ============ TAB A: 書籍瀏覽與借閱操作區 ============ -->
+    <section id="tab-browse" class="tab-panel">
+      <div class="flex flex-wrap items-end justify-between gap-4 mb-6">
+        <div>
+          <h2 class="font-display text-2xl font-bold">館藏書目</h2>
+          <p class="text-sm text-[var(--ink)]/60 mt-1">瀏覽館內書籍，選擇後即可送出借閱紀錄</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <label for="genre-filter" class="text-sm font-medium text-[var(--ink)]/70">類型篩選</label>
+          <select id="genre-filter" class="input-ledger rounded-md px-3 py-2 text-sm font-medium min-w-[140px]">
+            <option value="">全部類型</option>
+            <option value="小說">小說</option>
+            <option value="科普">科普</option>
+            <option value="商業">商業</option>
+            <option value="歷史">歷史</option>
+            <option value="漫畫">漫畫</option>
+          </select>
+          <button id="add-book-btn" class="btn-ink rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap">+ 新增書籍</button>
+        </div>
+      </div>
+
+      <div id="book-count-label" class="text-xs font-mono text-[var(--ink)]/50 mb-3"></div>
+
+      <div id="book-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- 書籍卡片由 JS 動態填入 -->
+      </div>
+
+      <div id="book-empty" class="hidden text-center py-16 text-[var(--ink)]/45">
+        <p class="font-display text-lg">— 沒有符合條件的書籍 —</p>
+      </div>
+    </section>
+
+    <!-- ============ TAB B: 個人化推薦與分類查詢區 ============ -->
+    <section id="tab-profile" class="tab-panel hidden">
+      <div class="card-stamp rounded-xl p-6 mb-8">
+        <h2 class="font-display text-2xl font-bold mb-1">借閱者分析</h2>
+        <p class="text-sm text-[var(--ink)]/60 mb-5">輸入借閱者姓名，依決策樹計算閱讀者類型，並取得 AI 個人化推薦書單</p>
+        <div class="flex flex-wrap gap-3">
+          <input id="borrower-input" type="text" placeholder="輸入借閱者姓名，例如：陳家豪"
+                 class="input-ledger rounded-md px-4 py-2.5 text-sm flex-1 min-w-[220px]">
+          <button id="analyze-btn" class="btn-stamp rounded-md px-6 py-2.5 text-sm font-medium whitespace-nowrap">
+            查詢分析與推薦
+          </button>
+        </div>
+      </div>
+
+      <div id="profile-empty" class="text-center py-20 text-[var(--ink)]/40">
+        <p class="font-display text-lg">— 尚未查詢，請於上方輸入借閱者姓名 —</p>
+      </div>
+
+      <div id="profile-loading" class="hidden">
+        <div class="card-stamp rounded-xl p-6 mb-6">
+          <div class="skeleton h-6 w-40 rounded mb-4"></div>
+          <div class="grid grid-cols-3 gap-4">
+            <div class="skeleton h-16 rounded"></div>
+            <div class="skeleton h-16 rounded"></div>
+            <div class="skeleton h-16 rounded"></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="skeleton h-40 rounded-xl"></div>
+          <div class="skeleton h-40 rounded-xl"></div>
+        </div>
+      </div>
+
+      <div id="profile-error" class="hidden card-stamp rounded-xl p-6 border-2 border-[var(--terracotta)]">
+        <p class="font-medium text-[var(--terracotta-deep)]" id="profile-error-text"></p>
+      </div>
+
+      <div id="profile-result" class="hidden">
+
+        <!-- 讀者類型卡片：借閱卡蓋章視覺 -->
+        <div class="card-stamp rounded-xl p-6 mb-6 relative overflow-hidden">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p class="text-xs font-mono text-[var(--ink)]/50 mb-1">BORROWER CARD</p>
+              <h3 class="font-display text-2xl font-bold" id="result-name">—</h3>
+            </div>
+            <div id="result-badge" class="stamp-anim shrink-0 px-4 py-2 rounded-md font-display text-base font-bold tracking-wide">
+              —
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-4 mt-6">
+            <div class="ledger-line pb-2">
+              <p class="text-xs text-[var(--ink)]/55 mb-1">總借閱次數</p>
+              <p class="font-mono text-2xl font-bold" id="result-total">—</p>
+            </div>
+            <div class="ledger-line pb-2">
+              <p class="text-xs text-[var(--ink)]/55 mb-1">最常借閱類型</p>
+              <p class="font-display text-2xl font-bold" id="result-genre">—</p>
+            </div>
+            <div class="ledger-line pb-2">
+              <p class="text-xs text-[var(--ink)]/55 mb-1">單一類型佔比</p>
+              <p class="font-mono text-2xl font-bold" id="result-ratio">—</p>
+            </div>
+          </div>
+
+          <!-- 決策樹路徑提示 -->
+          <div class="mt-5 flex items-center gap-2 text-xs font-mono text-[var(--ink)]/50 flex-wrap" id="result-tree-path">
+          </div>
+        </div>
+
+        <!-- 推薦書單 -->
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-display text-xl font-bold">AI 個人化推薦書單</h3>
+          <span class="text-xs font-mono text-[var(--ink)]/45">POWERED BY GEMINI</span>
+        </div>
+        <div id="recommendation-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============ 借閱 Modal ============ -->
+  <div id="borrow-modal" class="hidden fixed inset-0 z-50 items-center justify-center" style="background: rgba(31,58,53,0.45);">
+    <div class="card-stamp rounded-xl p-6 w-full max-w-sm mx-4">
+      <h3 class="font-display text-lg font-bold mb-1">借閱登記</h3>
+      <p id="borrow-modal-book-title" class="text-sm text-[var(--ink)]/60 mb-4"></p>
+      <label class="text-xs font-medium text-[var(--ink)]/70 mb-1.5 block">借閱者姓名</label>
+      <input id="borrow-modal-input" type="text" placeholder="輸入姓名"
+             class="input-ledger rounded-md px-4 py-2.5 text-sm w-full mb-4">
+      <div class="flex gap-3">
+        <button id="borrow-modal-cancel" class="flex-1 rounded-md px-4 py-2.5 text-sm font-medium border-2 border-[var(--ink)]/20 hover:bg-[var(--ink)]/5">取消</button>
+        <button id="borrow-modal-confirm" class="flex-1 btn-stamp rounded-md px-4 py-2.5 text-sm font-medium">確認借閱</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 新增書籍 Modal ============ -->
+  <div id="add-book-modal" class="hidden fixed inset-0 z-50 items-center justify-center" style="background: rgba(31,58,53,0.45);">
+    <div class="card-stamp rounded-xl p-6 w-full max-w-sm mx-4">
+      <h3 class="font-display text-lg font-bold mb-4">新增書籍</h3>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-medium text-[var(--ink)]/70 mb-1.5 block">書名</label>
+          <input id="new-book-title" type="text" class="input-ledger rounded-md px-4 py-2.5 text-sm w-full">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-[var(--ink)]/70 mb-1.5 block">類型</label>
+          <select id="new-book-genre" class="input-ledger rounded-md px-4 py-2.5 text-sm w-full">
+            <option value="小說">小說</option>
+            <option value="科普">科普</option>
+            <option value="商業">商業</option>
+            <option value="歷史">歷史</option>
+            <option value="漫畫">漫畫</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs font-medium text-[var(--ink)]/70 mb-1.5 block">作者（可留空）</label>
+          <input id="new-book-author" type="text" class="input-ledger rounded-md px-4 py-2.5 text-sm w-full">
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5">
+        <button id="add-book-cancel" class="flex-1 rounded-md px-4 py-2.5 text-sm font-medium border-2 border-[var(--ink)]/20 hover:bg-[var(--ink)]/5">取消</button>
+        <button id="add-book-confirm" class="flex-1 btn-stamp rounded-md px-4 py-2.5 text-sm font-medium">送出</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Toast 提示 ============ -->
+  <div id="toast" class="toast">
+    <div class="bg-[var(--ink)] text-[var(--paper)] rounded-lg px-5 py-3 shadow-lg flex items-center gap-2 text-sm font-medium">
+      <span id="toast-icon">✓</span>
+      <span id="toast-text"></span>
+    </div>
+  </div>
+
+<script>
+// =====================================================
+// 設定區：後端 API Base URL
+// =====================================================
+const API_BASE = 'http://localhost:8080/api';
+
+// =====================================================
+// 全域狀態
+// =====================================================
+let allBooks = [];
+
+// =====================================================
+// 工具函式
+// =====================================================
+function showToast(message, isError = false) {
+  const toast = document.getElementById('toast');
+  const icon = document.getElementById('toast-icon');
+  const text = document.getElementById('toast-text');
+  text.textContent = message;
+  icon.textContent = isError ? '✕' : '✓';
+  toast.querySelector('div').style.background = isError ? 'var(--terracotta-deep)' : 'var(--ink)';
+  toast.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+async function apiFetch(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  });
+  if (!res.ok) {
+    let message = `HTTP ${res.status}`;
+    try {
+      const body = await res.json();
+      message = body.message || message;
+    } catch (e) {}
+    throw new Error(message);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str ?? '';
+  return div.innerHTML;
+}
+
+// =====================================================
+// Tab 切換
+// =====================================================
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.remove('tab-active');
+      b.classList.add('tab-inactive');
+    });
+    btn.classList.remove('tab-inactive');
+    btn.classList.add('tab-active');
+
+    const target = btn.dataset.tab;
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+    document.getElementById(`tab-${target}`).classList.remove('hidden');
+  });
+});
+
+// =====================================================
+// A. 書籍瀏覽與借閱
+// =====================================================
+async function loadBooks() {
+  const grid = document.getElementById('book-grid');
+  grid.innerHTML = Array.from({ length: 6 }).map(() =>
+    `<div class="skeleton h-32 rounded-xl"></div>`
+  ).join('');
+
+  try {
+    allBooks = await apiFetch('/books');
+    setApiStatus(true);
+    renderBooks();
+  } catch (err) {
+    setApiStatus(false);
+    grid.innerHTML = `<div class="col-span-full text-center py-12 text-[var(--terracotta-deep)]">
+      <p class="font-medium">無法連接後端 API：${escapeHtml(err.message)}</p>
+      <p class="text-xs mt-2 text-[var(--ink)]/50">請確認後端服務已啟動於 ${API_BASE}</p>
+    </div>`;
+  }
+}
+
+function setApiStatus(ok) {
+  const dot = document.getElementById('api-status-dot');
+  const text = document.getElementById('api-status-text');
+  if (ok) {
+    dot.style.background = '#639922';
+    text.textContent = 'API 連線正常';
+  } else {
+    dot.style.background = 'var(--terracotta)';
+    text.textContent = 'API 連線失敗';
+  }
+}
+
+function renderBooks() {
+  const filter = document.getElementById('genre-filter').value;
+  const filtered = filter ? allBooks.filter(b => b.genre === filter) : allBooks;
+  const grid = document.getElementById('book-grid');
+  const empty = document.getElementById('book-empty');
+  const countLabel = document.getElementById('book-count-label');
+
+  countLabel.textContent = `共 ${filtered.length} 本書籍${filter ? `（類型：${filter}）` : ''}`;
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  grid.innerHTML = filtered.map(book => `
+    <div class="card-stamp rounded-xl p-4 flex gap-3">
+      <div class="spine spine-${escapeHtml(book.genre)} rounded-sm self-stretch shrink-0"></div>
+      <div class="flex-1 flex flex-col min-w-0">
+        <div class="flex items-start justify-between gap-2">
+          <h3 class="font-display font-bold text-base leading-snug">${escapeHtml(book.title)}</h3>
+        </div>
+        <p class="text-xs text-[var(--ink)]/55 mt-1">${escapeHtml(book.author || '作者未知')}</p>
+        <div class="flex items-center justify-between mt-3 pt-3 border-t border-[var(--ink)]/10">
+          <span class="text-xs font-mono px-2 py-0.5 rounded bg-[var(--ink)]/8">${escapeHtml(book.genre)}</span>
+          <button data-book-id="${book.id}" data-book-title="${escapeHtml(book.title)}"
+                  class="borrow-trigger-btn text-xs font-medium px-3 py-1.5 rounded-md btn-ink">
+            借閱
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  document.querySelectorAll('.borrow-trigger-btn').forEach(btn => {
+    btn.addEventListener('click', () => openBorrowModal(btn.dataset.bookId, btn.dataset.bookTitle));
+  });
+}
+
+document.getElementById('genre-filter').addEventListener('change', renderBooks);
+
+// ---- 借閱 Modal ----
+let currentBorrowBookId = null;
+
+function openBorrowModal(bookId, bookTitle) {
+  currentBorrowBookId = bookId;
+  document.getElementById('borrow-modal-book-title').textContent = `書籍：${bookTitle}`;
+  document.getElementById('borrow-modal-input').value = '';
+  const modal = document.getElementById('borrow-modal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  document.getElementById('borrow-modal-input').focus();
+}
+
+function closeBorrowModal() {
+  const modal = document.getElementById('borrow-modal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+}
+
+document.getElementById('borrow-modal-cancel').addEventListener('click', closeBorrowModal);
+
+document.getElementById('borrow-modal-confirm').addEventListener('click', async () => {
+  const name = document.getElementById('borrow-modal-input').value.trim();
+  if (!name) {
+    showToast('請輸入借閱者姓名', true);
+    return;
+  }
+  const confirmBtn = document.getElementById('borrow-modal-confirm');
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = '處理中...';
+
+  try {
+    await apiFetch('/borrow', {
+      method: 'POST',
+      body: JSON.stringify({ bookId: Number(currentBorrowBookId), borrowerName: name })
+    });
+    showToast(`已登記 ${name} 的借閱紀錄`);
+    closeBorrowModal();
+  } catch (err) {
+    showToast(`借閱失敗：${err.message}`, true);
+  } finally {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = '確認借閱';
+  }
+});
+
+document.getElementById('borrow-modal-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('borrow-modal-confirm').click();
+});
+
+// ---- 新增書籍 Modal ----
+document.getElementById('add-book-btn').addEventListener('click', () => {
+  document.getElementById('new-book-title').value = '';
+  document.getElementById('new-book-author').value = '';
+  document.getElementById('new-book-genre').value = '小說';
+  const modal = document.getElementById('add-book-modal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+});
+
+document.getElementById('add-book-cancel').addEventListener('click', () => {
+  const modal = document.getElementById('add-book-modal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+});
+
+document.getElementById('add-book-confirm').addEventListener('click', async () => {
+  const title = document.getElementById('new-book-title').value.trim();
+  const genre = document.getElementById('new-book-genre').value;
+  const author = document.getElementById('new-book-author').value.trim();
+
+  if (!title) {
+    showToast('請輸入書名', true);
+    return;
+  }
+
+  const btn = document.getElementById('add-book-confirm');
+  btn.disabled = true;
+  btn.textContent = '送出中...';
+
+  try {
+    await apiFetch('/books', {
+      method: 'POST',
+      body: JSON.stringify({ title, genre, author: author || null })
+    });
+    showToast('書籍新增成功');
+    document.getElementById('add-book-modal').classList.add('hidden');
+    document.getElementById('add-book-modal').classList.remove('flex');
+    await loadBooks();
+  } catch (err) {
+    showToast(`新增失敗：${err.message}`, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '送出';
+  }
+});
+
+// =====================================================
+// B. 個人化推薦與分類查詢
+// =====================================================
+const READER_TYPE_STYLE = {
+  '核心專一讀者': { badge: 'badge-core' },
+  '博學探索讀者': { badge: 'badge-explorer' },
+  '潛力小眾讀者': { badge: 'badge-niche' },
+  '隨興體驗讀者': { badge: 'badge-casual' },
+};
+
+function renderTreePath(totalBorrows, ratio) {
+  const step1 = totalBorrows >= 10;
+  const step2 = ratio >= 0.70;
+  const container = document.getElementById('result-tree-path');
+  container.innerHTML = `
+    <span class="px-2 py-1 rounded border ${step1 ? 'border-[var(--ink)]/40' : 'border-[var(--ink)]/15 opacity-50'}">
+      總借閱次數 ${totalBorrows} ${step1 ? '≥' : '<'} 10
+    </span>
+    <span>→</span>
+    <span class="px-2 py-1 rounded border ${step2 ? 'border-[var(--ink)]/40' : 'border-[var(--ink)]/15 opacity-50'}">
+      佔比 ${(ratio * 100).toFixed(1)}% ${step2 ? '≥' : '<'} 70%
+    </span>
+  `;
+}
+
+async function analyzeBorrower() {
+  const name = document.getElementById('borrower-input').value.trim();
+  if (!name) {
+    showToast('請輸入借閱者姓名', true);
+    return;
+  }
+
+  document.getElementById('profile-empty').classList.add('hidden');
+  document.getElementById('profile-result').classList.add('hidden');
+  document.getElementById('profile-error').classList.add('hidden');
+  document.getElementById('profile-loading').classList.remove('hidden');
+
+  const analyzeBtn = document.getElementById('analyze-btn');
+  analyzeBtn.disabled = true;
+
+  try {
+    // 同時呼叫 type 與 recommendations 兩個端點
+    const [typeData, recoData] = await Promise.all([
+      apiFetch(`/borrowers/${encodeURIComponent(name)}/type`),
+      apiFetch(`/borrowers/${encodeURIComponent(name)}/recommendations`)
+    ]);
+
+    renderProfile(typeData, recoData);
+
+  } catch (err) {
+    document.getElementById('profile-loading').classList.add('hidden');
+    document.getElementById('profile-error').classList.remove('hidden');
+    document.getElementById('profile-error-text').textContent = `查詢失敗：${err.message}`;
+  } finally {
+    analyzeBtn.disabled = false;
+  }
+}
+
+function renderProfile(typeData, recoData) {
+  document.getElementById('profile-loading').classList.add('hidden');
+  document.getElementById('profile-result').classList.remove('hidden');
+
+  document.getElementById('result-name').textContent = typeData.borrowerName;
+  document.getElementById('result-total').textContent = typeData.totalBorrows;
+  document.getElementById('result-genre').textContent = typeData.topGenre || '無紀錄';
+  document.getElementById('result-ratio').textContent = `${(typeData.maxGenreRatio * 100).toFixed(1)}%`;
+
+  const badge = document.getElementById('result-badge');
+  const style = READER_TYPE_STYLE[typeData.readerType] || { badge: 'badge-casual' };
+  badge.className = `stamp-anim shrink-0 px-4 py-2 rounded-md font-display text-base font-bold tracking-wide ${style.badge}`;
+  badge.textContent = typeData.readerType;
+
+  renderTreePath(typeData.totalBorrows, typeData.maxGenreRatio);
+
+  const recoGrid = document.getElementById('recommendation-grid');
+  const recommendations = recoData.recommendations || [];
+
+  if (recommendations.length === 0) {
+    recoGrid.innerHTML = `<div class="col-span-full text-center py-10 text-[var(--ink)]/45">
+      <p>目前沒有可顯示的推薦書單</p>
+    </div>`;
+    return;
+  }
+
+  recoGrid.innerHTML = recommendations.map(rec => `
+    <div class="card-stamp rounded-xl p-4">
+      <div class="flex items-start justify-between gap-2 mb-1">
+        <h4 class="font-display font-bold text-base leading-snug">${escapeHtml(rec.title)}</h4>
+        ${rec.existsInLibrary
+          ? '<span class="text-xs font-mono px-2 py-0.5 rounded bg-[#DCE8DC] text-[#1F3A35] shrink-0 whitespace-nowrap">館藏內</span>'
+          : '<span class="text-xs font-mono px-2 py-0.5 rounded bg-[var(--ink)]/8 text-[var(--ink)]/60 shrink-0 whitespace-nowrap">館藏外</span>'}
+      </div>
+      <p class="text-xs text-[var(--ink)]/55 mb-3">${escapeHtml(rec.author || '未知')} · ${escapeHtml(rec.genre || '')}</p>
+      <p class="text-sm leading-relaxed border-t border-[var(--ink)]/10 pt-3" style="color: var(--ink-light);">
+        ${escapeHtml(rec.reason || '')}
+      </p>
+    </div>
+  `).join('');
+}
+
+document.getElementById('analyze-btn').addEventListener('click', analyzeBorrower);
+document.getElementById('borrower-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') analyzeBorrower();
+});
+
+// =====================================================
+// 初始化
+// =====================================================
+loadBooks();
+</script>
+</body>
+</html>
