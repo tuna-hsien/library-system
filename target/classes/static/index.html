@@ -318,9 +318,9 @@
 
 <script>
 // =====================================================
-// 設定區：後端 API Base URL（已修正：改用相對路徑，徹底解決雲端跨域與 localhost 連線拒絕問題）
+// 設定區：後端 API Base URL
 // =====================================================
-const API_BASE = '/api';
+const API_BASE = 'http://localhost:8080/api';
 
 // =====================================================
 // 全域狀態
@@ -400,7 +400,7 @@ async function loadBooks() {
     setApiStatus(false);
     grid.innerHTML = `<div class="col-span-full text-center py-12 text-[var(--terracotta-deep)]">
       <p class="font-medium">無法連接後端 API：${escapeHtml(err.message)}</p>
-      <p class="text-xs mt-2 text-[var(--ink)]/50">請確認後端服務已正確啟動且資料庫配置無誤。</p>
+      <p class="text-xs mt-2 text-[var(--ink)]/50">請確認後端服務已啟動於 ${API_BASE}</p>
     </div>`;
   }
 }
@@ -497,7 +497,6 @@ document.getElementById('borrow-modal-confirm').addEventListener('click', async 
     });
     showToast(`已登記 ${name} 的借閱紀錄`);
     closeBorrowModal();
-    await loadBooks(); // 借閱成功後重新整理書籍列表，維持資料流理解之同步性
   } catch (err) {
     showToast(`借閱失敗：${err.message}`, true);
   } finally {
@@ -572,11 +571,11 @@ function renderTreePath(totalBorrows, ratio) {
   const step2 = ratio >= 0.70;
   const container = document.getElementById('result-tree-path');
   container.innerHTML = `
-    <span class="px-2 py-1 rounded border ${step1 ? 'border-[var(--ink)]/40 bg-[var(--ink)]/5 font-bold' : 'border-[var(--ink)]/15 opacity-50'}">
+    <span class="px-2 py-1 rounded border ${step1 ? 'border-[var(--ink)]/40' : 'border-[var(--ink)]/15 opacity-50'}">
       總借閱次數 ${totalBorrows} ${step1 ? '≥' : '<'} 10
     </span>
     <span>→</span>
-    <span class="px-2 py-1 rounded border ${step2 ? 'border-[var(--ink)]/40 bg-[var(--ink)]/5 font-bold' : 'border-[var(--ink)]/15 opacity-50'}">
+    <span class="px-2 py-1 rounded border ${step2 ? 'border-[var(--ink)]/40' : 'border-[var(--ink)]/15 opacity-50'}">
       佔比 ${(ratio * 100).toFixed(1)}% ${step2 ? '≥' : '<'} 70%
     </span>
   `;
@@ -589,16 +588,13 @@ async function analyzeBorrower() {
     return;
   }
 
-  // UI 狀態重置
   document.getElementById('profile-empty').classList.add('hidden');
   document.getElementById('profile-result').classList.add('hidden');
   document.getElementById('profile-error').classList.add('hidden');
   document.getElementById('profile-loading').classList.remove('hidden');
 
   const analyzeBtn = document.getElementById('analyze-btn');
-  // 核心防連點保護：避免短時間反覆點擊觸發 Gemini API 429 頻率限制
   analyzeBtn.disabled = true;
-  analyzeBtn.textContent = '分析中...';
 
   try {
     // 同時呼叫 type 與 recommendations 兩個端點
@@ -612,13 +608,9 @@ async function analyzeBorrower() {
   } catch (err) {
     document.getElementById('profile-loading').classList.add('hidden');
     document.getElementById('profile-error').classList.remove('hidden');
-    document.getElementById('profile-error-text').innerHTML = `
-      <strong>查詢失敗：</strong> ${escapeHtml(err.message)}<br/>
-      <span class="text-xs opacity-75 mt-1 block">提示：如果是 Gemini 429 頻率限制，請稍候 1 分鐘後再次嘗試，或確認資料庫內有該使用者的完整借閱紀錄。</span>
-    `;
+    document.getElementById('profile-error-text').textContent = `查詢失敗：${err.message}`;
   } finally {
     analyzeBtn.disabled = false;
-    analyzeBtn.textContent = '查詢分析與推薦';
   }
 }
 
