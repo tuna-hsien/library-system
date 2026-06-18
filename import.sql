@@ -11,7 +11,6 @@
 -- 清空既有資料（若有）
 DELETE FROM borrow_records;
 DELETE FROM books;
-DELETE FROM sqlite_sequence WHERE name IN ('books', 'borrow_records');
 
 -- ---------------------------------------------------
 -- 書籍資料 (books)：50 本，5 種類型各 10 本
