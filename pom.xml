@@ -48,11 +48,11 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-        <!-- SQLite JDBC Driver -->
+        <!-- SQLite JDBC Driver (保留新版並移除多餘重複項) -->
         <dependency>
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
-            <version>3.45.3.0</version>
+            <version>3.46.0.0</version>
         </dependency>
 
         <!-- Hibernate Community Dialects：提供 SQLiteDialect，讓 JPA 認識 SQLite 語法 -->
@@ -74,12 +74,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.xerial</groupId>
-            <artifactId>sqlite-jdbc</artifactId>
-            <version>3.46.0.0</version>  <scope>runtime</scope>
         </dependency>
     </dependencies>
 
